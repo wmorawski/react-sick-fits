@@ -4,7 +4,7 @@ import Page from '../components/Page';
 class MyApp extends App {
   constructor(props) {
     super(props);
-    this.state = {}
+    this.state = {};
   }
   render() {
     const { Component } = this.props;
@@ -14,7 +14,7 @@ class MyApp extends App {
           <Component />
         </Page>
       </Container>
-    )
+    );
   }
 }
 
