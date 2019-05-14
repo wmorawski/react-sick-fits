@@ -1,7 +1,6 @@
+const { forwardTo } = require('prisma-binding')
 const Query = {
-  dogs(parent, args, ctx, info) {
-    return [{ name: 'Snickers' }, { name: 'Mars' }]
-  }
+  items: forwardTo('db')
 };
 
 module.exports = Query;
