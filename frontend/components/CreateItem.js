@@ -31,68 +31,101 @@ class CreateItem extends Component {
     description: 'I love ctx',
     image: '',
     largeImage: '',
-    price: 1000,
-  }
-  handleChange = (e) => {
+    price: 1000
+  };
+  handleChange = e => {
     const { name, type, value } = e.target;
-    const val = type === 'number' ? parseFloat(value) : value
-    this.setState({ [name]: val })
-  }
-  uploadFile = async (e) => {
-    console.log('uploading file...')
+    const val = type === 'number' ? parseFloat(value) : value;
+    this.setState({ [name]: val });
+  };
+  uploadFile = async e => {
+    console.log('uploading file...');
     const files = e.target.files;
     const data = new FormData();
     data.append('file', files[0]);
     data.append('upload_preset', 'sickfits');
-    const res = await fetch('https://api.cloudinary.com/v1_1/onediv/image/upload', {
-      method: 'POST',
-      body: data
-    })
+    const res = await fetch(
+      'https://api.cloudinary.com/v1_1/onediv/image/upload',
+      {
+        method: 'POST',
+        body: data
+      }
+    );
     const file = await res.json();
     console.log(file);
     this.setState({
       image: file.secure_url,
       largeImage: file.eager[0].secure_url
     });
-  }
+  };
   render() {
     return (
       <Mutation mutation={CREATE_ITEM_MUTATION} variables={this.state}>
         {(createItem, { loading, error, called, data }) => (
-          <Form onSubmit={async e => {
-            e.preventDefault();
-            const res = await createItem();
-            Router.push({
-              pathname: '/item',
-              query: { id: res.data.createItem.id }
-            })
-          }}>
+          <Form
+            onSubmit={async e => {
+              e.preventDefault();
+              const res = await createItem();
+              Router.push({
+                pathname: '/item',
+                query: { id: res.data.createItem.id }
+              });
+            }}
+          >
             <Error error={error} />
             <h2>Sell an item!</h2>
             <fieldset disabled={loading} aria-busy={loading}>
-              <label htmlFor="file">
+              <label htmlFor='file'>
                 Image
-                <input type="file" name="file" id="file" placeholder="Upload an image" onChange={this.uploadFile} />
-                {this.state.image && <img src={this.state.image} alt="uploadpreview" />}
+                <input
+                  type='file'
+                  name='file'
+                  id='file'
+                  placeholder='Upload an image'
+                  onChange={this.uploadFile}
+                />
+                {this.state.image && (
+                  <img src={this.state.image} alt='uploadpreview' />
+                )}
               </label>
-              <label htmlFor="title">
+              <label htmlFor='title'>
                 Title
-                <input type="text" name="title" id="title" placeholder="Title" value={this.state.title} onChange={this.handleChange} />
+                <input
+                  type='text'
+                  name='title'
+                  id='title'
+                  placeholder='Title'
+                  value={this.state.title}
+                  onChange={this.handleChange}
+                />
               </label>
-              <label htmlFor="title">
+              <label htmlFor='title'>
                 Price
-                <input type="number" name="price" id="price" placeholder="Price" value={this.state.price} onChange={this.handleChange} />
+                <input
+                  type='number'
+                  name='price'
+                  id='price'
+                  placeholder='Price'
+                  value={this.state.price}
+                  onChange={this.handleChange}
+                />
               </label>
-              <label htmlFor="Description">
+              <label htmlFor='Description'>
                 Description
-                <textarea name="description" id="description" placeholder="Description" value={this.state.description} onChange={this.handleChange} />
+                <textarea
+                  name='description'
+                  id='description'
+                  placeholder='Description'
+                  value={this.state.description}
+                  onChange={this.handleChange}
+                />
               </label>
-              <button type="submit">Submit</button>
+              <button type='submit'>Submit</button>
             </fieldset>
           </Form>
         )}
       </Mutation>
-    )
+    );
   }
 }
 
