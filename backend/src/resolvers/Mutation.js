@@ -3,11 +3,12 @@ const jwt = require('jsonwebtoken');
 const { randomBytes } = require('crypto');
 const { promisify } = require('util');
 const { transport, makeANiceEmail } = require('../mail');
+const { hasPermission } = require('../utils');
 const createToken = (ctx, user) => {
   const token = jwt.sign({ userId: user.id }, process.env.APP_SECRET);
   ctx.response.cookie('token', token, {
     httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 * 365
+    maxAge: 1000 * 60 * 60 * 24 * 365,
   });
   return token;
 };
@@ -21,13 +22,13 @@ const Mutation = {
         data: {
           user: {
             connect: {
-              id: ctx.request.userId
-            }
+              id: ctx.request.userId,
+            },
           },
-          ...args
-        }
+          ...args,
+        },
       },
-      info
+      info,
     );
   },
   async updateItem(parent, args, ctx, info) {
@@ -37,15 +38,22 @@ const Mutation = {
       {
         data: updates,
         where: {
-          id: args.id
-        }
+          id: args.id,
+        },
       },
-      info
+      info,
     );
   },
   async deleteItem(parent, args, ctx, info) {
     const where = { id: args.id };
-    const item = await ctx.db.query.item({ where }, `{id,title}`);
+    const item = await ctx.db.query.item({ where }, `{id,title, user{id}}`);
+    const ownsItem = item.user.id === ctx.request.userId;
+    const hasPermissions = ctx.request.user.permissions.some((permission) =>
+      ['ADMIN', 'ITEMDELETE'].includes(permission),
+    );
+    if (!ownsItem || !hasPermissions) {
+      throw new Error("You don't have permission to do that!");
+    }
     return ctx.db.mutation.deleteItem({ where }, info);
   },
   async signup(parent, args, ctx, info) {
@@ -56,10 +64,10 @@ const Mutation = {
         data: {
           ...args,
           password,
-          permissions: { set: ['USER'] }
-        }
+          permissions: { set: ['USER'] },
+        },
       },
-      info
+      info,
     );
     const token = createToken(ctx, user);
     return user;
@@ -67,8 +75,8 @@ const Mutation = {
   async signin(parent, { email, password }, ctx, info) {
     const user = await ctx.db.query.user({
       where: {
-        email
-      }
+        email,
+      },
     });
     if (!user) {
       throw new Error(`No such user found for email: ${email}`);
@@ -83,7 +91,7 @@ const Mutation = {
   signout(parent, args, ctx, info) {
     ctx.response.clearCookie('token');
     return {
-      message: 'Goodbye!'
+      message: 'Goodbye!',
     };
   },
   async requestReset(parent, { email }, ctx, info) {
@@ -95,7 +103,7 @@ const Mutation = {
     const resetTokenExpiry = Date.now() + 3600000;
     const response = await ctx.db.mutation.updateUser({
       where: { email },
-      data: { resetToken, resetTokenExpiry }
+      data: { resetToken, resetTokenExpiry },
     });
     const mailRes = await transport.sendMail({
       from: 'noreply@onediv.io',
@@ -104,8 +112,8 @@ const Mutation = {
       html: makeANiceEmail(
         `Your password reset token is here! \n \n <a href="${
           process.env.FRONTEND_URL
-        }/reset?resetToken=${resetToken}">Click here to reset!</a>`
-      )
+        }/reset?resetToken=${resetToken}">Click here to reset!</a>`,
+      ),
     });
     return { message: `Reset token sent to ${email}` };
   },
@@ -116,8 +124,8 @@ const Mutation = {
     const [user] = await ctx.db.query.users({
       where: {
         resetToken: args.resetToken,
-        resetTokenExpiry_gte: Date.now() - 3600000
-      }
+        resetTokenExpiry_gte: Date.now() - 3600000,
+      },
     });
     if (!user) {
       throw new Error('This token is either invalid or expired');
@@ -125,17 +133,87 @@ const Mutation = {
     const password = await bcrypt.hash(args.password, 10);
     const updatedUser = await ctx.db.mutation.updateUser({
       where: {
-        id: user.id
+        id: user.id,
       },
       data: {
         resetToken: null,
         resetTokenExpiry: null,
-        password
-      }
+        password,
+      },
     });
     const token = createToken(ctx, user);
     return updatedUser;
-  }
+  },
+  async updatePermissions(parent, args, ctx, info) {
+    if (!ctx.request.userId) {
+      throw new Error('You must be logged in!');
+    }
+    const currentUser = await ctx.db.query.user(
+      {
+        where: {
+          id: ctx.request.userId,
+        },
+      },
+      info,
+    );
+    hasPermission(currentUser, ['ADMIN', 'PERMISSIONUPDATE']);
+    return ctx.db.mutation.updateUser(
+      {
+        data: {
+          permissions: {
+            set: args.permissions,
+          },
+        },
+        where: {
+          id: args.userId,
+        },
+      },
+      info,
+    );
+  },
+  async addTocart(parent, args, ctx, info) {
+    const { userId } = ctx.request;
+    if (!userId) {
+      throw new Error('You must be logged in!');
+    }
+    const [existingCartItem] = await ctx.db.query.cartItems({
+      where: {
+        item: { id: args.id },
+        user: { id: userId },
+      },
+    });
+    if (existingCartItem) {
+      console.log('already in cart');
+      return ctx.db.mutation.updateCartItem(
+        {
+          where: {
+            id: existingCartItem.id,
+          },
+          data: {
+            quantity: existingCartItem.quantity + 1,
+          },
+        },
+        info,
+      );
+    }
+    return ctx.db.mutation.createCartItem(
+      {
+        data: {
+          user: {
+            connect: {
+              id: userId,
+            },
+          },
+          item: {
+            connect: {
+              id: args.id,
+            },
+          },
+        },
+      },
+      info,
+    );
+  },
 };
 
 module.exports = Mutation;
