@@ -28,7 +28,7 @@ const Mutation = {
           ...args,
         },
       },
-      info
+      info,
     );
   },
   async updateItem(parent, args, ctx, info) {
@@ -41,14 +41,16 @@ const Mutation = {
           id: args.id,
         },
       },
-      info
+      info,
     );
   },
   async deleteItem(parent, args, ctx, info) {
     const where = { id: args.id };
     const item = await ctx.db.query.item({ where }, `{id,title, user{id}}`);
     const ownsItem = item.user.id === ctx.request.userId;
-    const hasPermissions = ctx.request.user.permissions.some((permission) => ['ADMIN', 'ITEMDELETE'].includes(permission));
+    const hasPermissions = ctx.request.user.permissions.some((permission) =>
+      ['ADMIN', 'ITEMDELETE'].includes(permission),
+    );
     if (!ownsItem || !hasPermissions) {
       throw new Error("You don't have permission to do that!");
     }
@@ -65,7 +67,7 @@ const Mutation = {
           permissions: { set: ['USER'] },
         },
       },
-      info
+      info,
     );
     const token = createToken(ctx, user);
     return user;
@@ -110,7 +112,7 @@ const Mutation = {
       html: makeANiceEmail(
         `Your password reset token is here! \n \n <a href="${
           process.env.FRONTEND_URL
-        }/reset?resetToken=${resetToken}">Click here to reset!</a>`
+        }/reset?resetToken=${resetToken}">Click here to reset!</a>`,
       ),
     });
     return { message: `Reset token sent to ${email}` };
@@ -152,7 +154,7 @@ const Mutation = {
           id: ctx.request.userId,
         },
       },
-      info
+      info,
     );
     hasPermission(currentUser, ['ADMIN', 'PERMISSIONUPDATE']);
     return ctx.db.mutation.updateUser(
@@ -166,7 +168,7 @@ const Mutation = {
           id: args.userId,
         },
       },
-      info
+      info,
     );
   },
   async addToCart(parent, args, ctx, info) {
@@ -181,7 +183,6 @@ const Mutation = {
       },
     });
     if (existingCartItem) {
-      console.log('already in cart');
       return ctx.db.mutation.updateCartItem(
         {
           where: {
@@ -191,7 +192,7 @@ const Mutation = {
             quantity: existingCartItem.quantity + 1,
           },
         },
-        info
+        info,
       );
     }
     return ctx.db.mutation.createCartItem(
@@ -209,8 +210,25 @@ const Mutation = {
           },
         },
       },
-      info
+      info,
     );
+  },
+  async removeFromCart(parent, args, ctx, info) {
+    const cartItem = await ctx.db.query.cartItem(
+      {
+        where: {
+          id: args.id,
+        },
+      },
+      `{id, user {id}}`,
+    );
+    if (!cartItem) {
+      throw new Error('No CartItem found!');
+    }
+    if (cartItem.user.id !== ctx.request.userId) {
+      throw new Error('Cheatin huhhh');
+    }
+    return ctx.db.mutation.deleteCartItem({ where: { id: args.id } }, info);
   },
 };
 
